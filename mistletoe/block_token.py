@@ -290,7 +290,8 @@ class Paragraph(BlockToken):
     Paragraph token. (["some\\n", "continuous\\n", "lines\\n"])
     Boundary between span-level and block-level tokens.
     """
-    setext_pattern = re.compile(r' {0,3}(=|-)+ *$')
+    # setext_pattern = re.compile(r' {0,3}(=|-)+ *$')
+    setext_pattern = re.compile(r' {0,3}(=)+ *$')
     parse_setext = True  # can be disabled by Quote
 
     def __new__(cls, lines):
@@ -410,6 +411,7 @@ class CodeFence(BlockToken):
     _open_info = None
     def __init__(self, match):
         lines, open_info = match
+        self.rawText = ''.join(lines)
         self.language = span_token.EscapeSequence.strip(open_info[2])
         self.children = (span_token.RawText(''.join(lines)),)
 
@@ -976,6 +978,9 @@ class Setting(BlockToken):
             return False
         cls.option = match_obj.group(1) or ''
         cls.content = match_obj.group(2) or ''
+        cls.option = cls.option.lower()
+        if cls.option == 'setting':
+            cls.content = cls.content.lower()
         if cls.option == '':
             return False
         return True
