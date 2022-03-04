@@ -20,7 +20,7 @@ from mistletoe.core_tokens import (
 """
 Tokens to be included in the parsing process, in the order specified.
 """
-__all__ = ['BlockCode', 'Heading', 'Quote', 'CodeFence', 'ThematicBreak',
+__all__ = ['BlockCode', 'Heading', 'Setting', 'Quote', 'CodeFence', 'ThematicBreak',
            'List', 'Table', 'Footnote', 'Paragraph']
 
 
@@ -239,7 +239,8 @@ class Quote(BlockToken):
                 and not Heading.start(next_line)
                 and not CodeFence.start(next_line)
                 and not ThematicBreak.start(next_line)
-                and not List.start(next_line)):
+                and not List.start(next_line)
+                and not Setting.start(next_line)):
             stripped = cls.convert_leading_tabs(next_line.lstrip())
             prepend = 0
             if stripped[0] == '>':
@@ -289,7 +290,8 @@ class Paragraph(BlockToken):
     Paragraph token. (["some\\n", "continuous\\n", "lines\\n"])
     Boundary between span-level and block-level tokens.
     """
-    setext_pattern = re.compile(r' {0,3}(=|-)+ *$')
+    # setext_pattern = re.compile(r' {0,3}(=|-)+ *$')
+    setext_pattern = re.compile(r' {0,3}(=)+ *$')
     parse_setext = True  # can be disabled by Quote
 
     def __new__(cls, lines):
@@ -314,7 +316,8 @@ class Paragraph(BlockToken):
                 and next_line.strip() != ''
                 and not Heading.start(next_line)
                 and not CodeFence.start(next_line)
-                and not Quote.start(next_line)):
+                and not Quote.start(next_line)
+                and not Setting.start(next_line)):
 
             # check if next_line starts List
             list_pair = ListItem.parse_marker(next_line)
@@ -404,10 +407,11 @@ class CodeFence(BlockToken):
         children (list): contains a single span_token.RawText token.
         language (str): language of code block (default to empty).
     """
-    pattern = re.compile(r'( {0,3})((?:`|~){3,}) *(\S*)')
+    pattern = re.compile(r'( {0,3})((?:`|~){3,}) *(.*$)')
     _open_info = None
     def __init__(self, match):
         lines, open_info = match
+        self.rawText = ''.join(lines)
         self.language = span_token.EscapeSequence.strip(open_info[2])
         self.children = (span_token.RawText(''.join(lines)),)
 
@@ -514,7 +518,8 @@ class ListItem(BlockToken):
         return (Heading.start(line)
                 or Quote.start(line)
                 or CodeFence.start(line)
-                or ThematicBreak.start(line))
+                or ThematicBreak.start(line)
+                or Setting.start(line))
 
     @classmethod
     def parse_marker(cls, line):
@@ -952,6 +957,39 @@ class HTMLBlock(BlockToken):
         return line_buffer
 
 
+class Setting(BlockToken):
+    """
+    Setting token. (["@ option:content\\n"])
+
+    Attributes:
+        option (str): option to set.
+        content (str): value.
+    """
+    pattern = re.compile(r'^@ *(.*) *\: *(.*$)')
+    option = ''
+    content = ''
+    def __init__(self, match):
+        self.option, self.content = match
+
+    @classmethod
+    def start(cls, line):
+        match_obj = cls.pattern.match(line)
+        if match_obj is None:
+            return False
+        cls.option = match_obj.group(1) or ''
+        cls.content = match_obj.group(2) or ''
+        cls.option = cls.option.lower()
+        if cls.option == 'setting':
+            cls.content = cls.content.lower()
+        if cls.option == '':
+            return False
+        return True
+
+    @classmethod
+    def read(cls, lines):
+        next(lines)
+        return cls.option, cls.content
+        
 _token_types = []
 reset_tokens()
 
